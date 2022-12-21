@@ -5,16 +5,15 @@ import {
   FindReferenceError,
   TransactionRequestURLFields,
 } from "@solana/pay"
-import { clusterApiUrl, Connection, Keypair } from "@solana/web3.js"
+import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js"
 import { useEffect, useRef, useState } from "react"
 
 export default function Home() {
   const [reference, setReference] = useState(Keypair.generate().publicKey)
   const connection = new Connection(clusterApiUrl("devnet"))
-
   const qrRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const updateQRCode = (reference: PublicKey) => {
     // location contains information about the current URL of the webpage
     const { location } = window
 
@@ -23,7 +22,7 @@ export default function Home() {
 
     // Append "reference" publickey, used to identify transaction for confirmation
     params.append("reference", reference.toString())
-    console.log(reference.toString())
+    console.log(reference.toString(), "new reference")
 
     // Custom Transaction Request API GetResponse
     // Included params to end of URL
@@ -49,32 +48,42 @@ export default function Home() {
       // Appends the new qr code to the element
       qr.append(qrRef.current)
     }
-  }, [reference])
+  }
 
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        // Check for transactions including the reference public key
-        const confirmedSignatureInfo = await findReference(
-          connection,
-          reference,
-          {
-            finality: "confirmed",
-          }
-        )
-        // Generate new reference public key once transaction confirmed
-        setReference(Keypair.generate().publicKey)
-        window.alert("Transaction Confirmed")
-      } catch (e) {
-        // If current reference not found, key checking
-        if (e instanceof FindReferenceError) {
-          console.log("Not Confirmed:", reference.toString())
-          return
+    updateQRCode(reference)
+  }, [reference])
+
+  const checkTransaction = async () => {
+    try {
+      // Check for transactions including the reference public key
+      const confirmedSignatureInfo = await findReference(
+        connection,
+        reference,
+        {
+          finality: "confirmed",
         }
-        console.error("Unknown error", e)
+      )
+      // If a transaction is confirmed, generate a new reference and display an alert
+      setReference(Keypair.generate().publicKey)
+      console.log(reference.toString(), "confirmed")
+      window.alert("Transaction Confirmed")
+      return
+    } catch (e) {
+      // If current reference not found, ignore error
+      if (e instanceof FindReferenceError) {
+        console.log("Not Confirmed")
+        return
       }
-    }, 1500)
+      console.error("Unknown error", e)
+    }
+  }
+
+  useEffect(() => {
+    // Start an interval to check for confirmed transaction
+    const interval = setInterval(checkTransaction, 1500)
     return () => {
+      // Clear the interval when the component unmounts
       clearInterval(interval)
     }
   }, [reference])

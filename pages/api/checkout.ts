@@ -67,7 +67,6 @@ async function post(
     res.status(400).json({ error: "No reference provided" })
     return
   }
-  console.log(reference)
 
   try {
     const postResponse = await buildTransaction(
